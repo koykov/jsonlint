@@ -16,6 +16,7 @@ var (
 	bQuote = []byte(`"`)
 	bFmt   = []byte(" \t\n\r")
 
+	// Errors.
 	ErrEmptySrc     = errors.New("can't parse empty source")
 	ErrUnparsedTail = errors.New("unparsed tail")
 	ErrUnexpId      = errors.New("unexpected identifier")
@@ -23,6 +24,9 @@ var (
 	ErrUnexpEOS     = errors.New("unexpected end of string")
 	ErrEOA          = errors.New("end of array")
 	ErrEOO          = errors.New("end of object")
+
+	// Suppress go vet warnings.
+	_ = ValidateStr
 )
 
 func Validate(s []byte) (offset int, err error) {
