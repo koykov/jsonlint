@@ -29,6 +29,7 @@ var (
 	_ = ValidateStr
 )
 
+// Validate source bytes.
 func Validate(s []byte) (offset int, err error) {
 	if len(s) == 0 {
 		err = ErrEmptySrc
@@ -36,39 +37,49 @@ func Validate(s []byte) (offset int, err error) {
 	}
 	s = bytealg.Trim(s, bFmt)
 	offset, err = validateGeneric(0, s, offset)
-
-	if err == nil && offset < len(s) {
+	if err != nil {
+		return offset, err
+	}
+	if offset < len(s) {
 		err = ErrUnparsedTail
 	}
 	return
 }
 
+// Validate source string.
 func ValidateStr(s string) (int, error) {
 	return Validate(fastconv.S2B(s))
 }
 
+// Generic validation helper.
 func validateGeneric(depth int, s []byte, offset int) (int, error) {
 	var err error
 
 	switch {
 	case s[offset] == 'n':
+		// Check null node.
 		if len(s[offset:]) > 3 && bytes.Equal(bNull, s[offset:offset+4]) {
 			offset += 4
 		} else {
 			return offset, ErrUnexpId
 		}
 	case s[offset] == '{':
+		// Check object node.
 		offset, err = validateObj(depth+1, s, offset)
 	case s[offset] == '[':
+		// Check array node.
 		offset, err = validateArr(depth+1, s, offset)
 	case s[offset] == '"':
+		// Check string node.
 		e := bytealg.IndexAt(s, bQuote, offset+1)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
 		if s[e-1] != '\\' {
+			// Good case - string isn't escaped.
 			offset = e + 1
 		} else {
+			// Walk over double quotas and look for unescaped.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
 				i = bytealg.IndexAt(s, bQuote, i+1)
@@ -84,6 +95,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 			offset = e + 1
 		}
 	case isDigit(s[offset]):
+		// Check number node.
 		if len(s[offset:]) > 0 {
 			i := offset
 			for isDigitDot(s[i]) {
@@ -97,12 +109,14 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 			return offset, ErrUnexpEOF
 		}
 	case s[offset] == 't':
+		// Check true node.
 		if len(s[offset:]) > 3 && bytes.Equal(bTrue, s[offset:offset+4]) {
 			offset += 4
 		} else {
 			return offset, ErrUnexpId
 		}
 	case s[offset] == 'f':
+		// Check false node.
 		if len(s[offset:]) > 4 && bytes.Equal(bFalse, s[offset:offset+5]) {
 			offset += 5
 		} else {
@@ -115,6 +129,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 	return offset, err
 }
 
+// Object validation helper.
 func validateObj(depth int, s []byte, offset int) (int, error) {
 	offset++
 	var (
@@ -123,6 +138,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 	)
 	for offset < len(s) {
 		if s[offset] == '}' {
+			// End of object.
 			offset++
 			break
 		}
@@ -140,8 +156,10 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			return len(s), ErrUnexpEOS
 		}
 		if s[e-1] != '\\' {
+			// Good case - key isn't escaped.
 			offset = e + 1
 		} else {
+			// Key contains escaped bytes.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
 				i = bytealg.IndexAt(s, bQuote, i+1)
@@ -159,6 +177,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		if offset, eof = skipFmt(s, offset); eof {
 			return offset, ErrUnexpEOF
 		}
+		// Check division symbol.
 		if s[offset] == ':' {
 			offset++
 		} else {
@@ -167,6 +186,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		if offset, eof = skipFmt(s, offset); eof {
 			return offset, ErrUnexpEOF
 		}
+		// Parse value. It may be an arbitrary type.
 		offset, err = validateGeneric(depth, s, offset)
 		if err == ErrEOO {
 			err = nil
@@ -177,10 +197,12 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		if offset, eof = skipFmt(s, offset); eof {
 			return offset, ErrUnexpEOF
 		}
+		// Check end of object again.
 		if s[offset] == '}' {
 			offset++
 			break
 		}
+		// Check separate symbol.
 		if s[offset] == ',' {
 			offset++
 		} else {
@@ -193,6 +215,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 	return offset, err
 }
 
+// Array validation helper.
 func validateArr(depth int, s []byte, offset int) (int, error) {
 	offset++
 	var (
@@ -201,9 +224,11 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 	)
 	for offset < len(s) {
 		if s[offset] == ']' {
+			// End of array.
 			offset++
 			break
 		}
+		// Parse the value.
 		offset, err = validateGeneric(depth, s, offset)
 		if err == ErrEOA {
 			err = nil
@@ -217,6 +242,7 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 			offset++
 			break
 		}
+		// Check separate symbol.
 		if s[offset] == ',' {
 			offset++
 		} else {
@@ -229,6 +255,9 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 	return offset, nil
 }
 
+// Skip formatting symbols like tabs, spaces, ...
+//
+// Returns the next non-format symbol index.
 func skipFmt(s []byte, offset int) (int, bool) {
 	if offset >= len(s) {
 		return offset, true
