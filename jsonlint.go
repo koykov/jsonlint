@@ -37,7 +37,7 @@ func Validate(s []byte) (offset int, err error) {
 	s = bytealg.Trim(s, bFmt)
 	offset, err = validateGeneric(0, s, offset)
 
-	if offset < len(s) {
+	if err == nil && offset < len(s) {
 		err = ErrUnparsedTail
 	}
 	return
@@ -117,13 +117,18 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 
 func validateObj(depth int, s []byte, offset int) (int, error) {
 	offset++
-	var err error
+	var (
+		err error
+		eof bool
+	)
 	for offset < len(s) {
 		if s[offset] == '}' {
 			offset++
 			break
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 		// Parse key.
 		if s[offset] != '"' {
 			// Key should be a string wrapped with double quotas.
@@ -151,19 +156,27 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			}
 			offset = e + 1
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 		if s[offset] == ':' {
 			offset++
 		} else {
 			return offset, ErrUnexpId
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 		offset, err = validateGeneric(depth, s, offset)
 		if err == ErrEOO {
 			err = nil
 			break
+		} else if err != nil {
+			return offset, err
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 		if s[offset] == '}' {
 			offset++
 			break
@@ -173,14 +186,19 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		} else {
 			return offset, ErrUnexpId
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 	}
 	return offset, err
 }
 
 func validateArr(depth int, s []byte, offset int) (int, error) {
 	offset++
-	var err error
+	var (
+		err error
+		eof bool
+	)
 	for offset < len(s) {
 		if s[offset] == ']' {
 			offset++
@@ -191,7 +209,9 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 			err = nil
 			break
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 		if s[offset] == ']' {
 			// End of the array caught.
 			offset++
@@ -202,16 +222,21 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 		} else {
 			return offset, ErrUnexpId
 		}
-		offset = skipFmt(s, offset)
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 	}
 	return offset, nil
 }
 
-func skipFmt(s []byte, offset int) int {
+func skipFmt(s []byte, offset int) (int, bool) {
+	if offset >= len(s) {
+		return offset, true
+	}
 	for bytes.IndexByte(bFmt, s[offset]) != -1 {
 		offset++
 	}
-	return offset
+	return offset, false
 }
 
 // Check if given byte is a part of the number.
