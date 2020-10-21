@@ -19,6 +19,10 @@ var (
 		[]byte(`{"menu":{"id":"file","value","popup":{"menuitem":[{"value":"New","onclick":"CreateNewDoc()"},{"value":"Open","onclick":"OpenDoc()"},{"value":"Close","onclick":"CloseDoc()"}]}}}`),
 		// unexpected EOF
 		[]byte(`{"menu":{"id":"file","value":"File","popup":{"menuitem":[{"value":"New","onclick":"CreateNewDoc()"},{"value":"Open","onclick":"OpenDoc()"},{"value":"Close","onclick":"CloseDoc()"}]}`),
+		// unclosed string
+		[]byte(`{"menu":{"id":"file","value":"File","popup":{"menuitem":[{"value":"New","onclick":"CreateNewDoc()"},{"value":"Open","onclick":"OpenDoc},{"value":"Close","onclick":"CloseDoc()"}]}}}`),
+		// empty array item
+		[]byte(`{"menu":{"id":"file","value":"File","popup":{"menuitem":[{"value":"New","onclick":"CreateNewDoc()"},{"value":"Open","onclick":"OpenDoc()"},,{"value":"Close","onclick":"CloseDoc()"}]}}}`),
 	}
 )
 
@@ -72,6 +76,26 @@ func TestValidateUnexpEOF(t *testing.T) {
 	}
 	if o != 181 {
 		t.Error("bad offset", o, "need", 181)
+	}
+}
+
+func TestValidateUnclosedString(t *testing.T) {
+	o, err := Validate(jsvBad[4])
+	if err != ErrUnexpId {
+		t.Error("need", ErrUnexpId, "got", err)
+	}
+	if o != 138 {
+		t.Error("bad offset", o, "need", 138)
+	}
+}
+
+func TestValidateEmptyArrItem(t *testing.T) {
+	o, err := Validate(jsvBad[5])
+	if err != ErrUnexpId {
+		t.Error("need", ErrUnexpId, "got", err)
+	}
+	if o != 139 {
+		t.Error("bad offset", o, "need", 139)
 	}
 }
 
@@ -132,6 +156,34 @@ func BenchmarkValidateUnexpEOF(b *testing.B) {
 		}
 		if o != 181 {
 			b.Error("bad offset", o, "need", 181)
+		}
+	}
+}
+
+func BenchmarkValidateUnclosedString(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		o, err := Validate(jsvBad[4])
+		if err != ErrUnexpId {
+			b.Error("need", ErrUnexpId, "got", err)
+		}
+		if o != 138 {
+			b.Error("bad offset", o, "need", 138)
+		}
+	}
+}
+
+func BenchmarkValidateEmptyArrItem(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		o, err := Validate(jsvBad[5])
+		if err != ErrUnexpId {
+			b.Error("need", ErrUnexpId, "got", err)
+		}
+		if o != 139 {
+			b.Error("bad offset", o, "need", 139)
 		}
 	}
 }
