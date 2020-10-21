@@ -1,4 +1,4 @@
-#JSON lint
+# JSON lint
 
 Simple JSON linter. There are no advantages over any other linters. Made just for fun. 
 
