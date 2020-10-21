@@ -22,8 +22,6 @@ var (
 	ErrUnexpId      = errors.New("unexpected identifier")
 	ErrUnexpEOF     = errors.New("unexpected end of file")
 	ErrUnexpEOS     = errors.New("unexpected end of string")
-	ErrEOA          = errors.New("end of array")
-	ErrEOO          = errors.New("end of object")
 
 	// Suppress go vet warnings.
 	_ = ValidateStr
@@ -187,11 +185,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			return offset, ErrUnexpEOF
 		}
 		// Parse value. It may be an arbitrary type.
-		offset, err = validateGeneric(depth, s, offset)
-		if err == ErrEOO {
-			err = nil
-			break
-		} else if err != nil {
+		if offset, err = validateGeneric(depth, s, offset); err != nil {
 			return offset, err
 		}
 		if offset, eof = skipFmt(s, offset); eof {
@@ -229,10 +223,8 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 			break
 		}
 		// Parse the value.
-		offset, err = validateGeneric(depth, s, offset)
-		if err == ErrEOA {
-			err = nil
-			break
+		if offset, err = validateGeneric(depth, s, offset); err != nil {
+			return offset, err
 		}
 		if offset, eof = skipFmt(s, offset); eof {
 			return offset, ErrUnexpEOF
