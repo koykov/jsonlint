@@ -222,6 +222,9 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 			offset++
 			break
 		}
+		if offset, eof = skipFmt(s, offset); eof {
+			return offset, ErrUnexpEOF
+		}
 		// Parse the value.
 		if offset, err = validateGeneric(depth, s, offset); err != nil {
 			return offset, err
