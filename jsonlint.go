@@ -68,7 +68,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 		offset, err = validateArr(depth+1, s, offset)
 	case s[offset] == '"':
 		// Check string node.
-		e := bytealg.IndexByteAtRL(s, '"', offset+1)
+		e := bytealg.IndexByteAtLR(s, '"', offset+1)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
@@ -79,7 +79,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 			// Walk over double quotas and look for unescaped.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
-				i = bytealg.IndexByteAtRL(s, '"', i+1)
+				i = bytealg.IndexByteAtLR(s, '"', i+1)
 				if i < 0 {
 					e = len(s) - 1
 					break
@@ -148,7 +148,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			return offset, ErrUnexpId
 		}
 		offset++
-		e := bytealg.IndexByteAtRL(s, '"', offset)
+		e := bytealg.IndexByteAtLR(s, '"', offset)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
@@ -159,7 +159,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			// Key contains escaped bytes.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
-				i = bytealg.IndexByteAtRL(s, '"', i+1)
+				i = bytealg.IndexByteAtLR(s, '"', i+1)
 				if i < 0 {
 					e = len(s) - 1
 					break
