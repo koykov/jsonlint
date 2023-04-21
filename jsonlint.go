@@ -2,10 +2,9 @@ package jsonlint
 
 import (
 	"bytes"
-	"errors"
 
 	"github.com/koykov/bytealg"
-	"github.com/koykov/fastconv"
+	"github.com/koykov/byteseq"
 )
 
 var (
@@ -14,20 +13,11 @@ var (
 	bTrue  = []byte("true")
 	bFalse = []byte("false")
 	bFmt   = []byte(" \t\n\r")
-
-	// Errors.
-	ErrEmptySrc     = errors.New("can't parse empty source")
-	ErrUnparsedTail = errors.New("unparsed tail")
-	ErrUnexpId      = errors.New("unexpected identifier")
-	ErrUnexpEOF     = errors.New("unexpected end of file")
-	ErrUnexpEOS     = errors.New("unexpected end of string")
-
-	// Suppress go vet warnings.
-	_ = ValidateStr
 )
 
 // Validate source bytes.
-func Validate(s []byte) (offset int, err error) {
+func Validate[T byteseq.Byteseq](x T) (offset int, err error) {
+	s := byteseq.Q2B(x)
 	if len(s) == 0 {
 		err = ErrEmptySrc
 		return
@@ -41,11 +31,6 @@ func Validate(s []byte) (offset int, err error) {
 		err = ErrUnparsedTail
 	}
 	return
-}
-
-// Validate source string.
-func ValidateStr(s string) (int, error) {
-	return Validate(fastconv.S2B(s))
 }
 
 // Generic validation helper.
@@ -68,7 +53,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 		offset, err = validateArr(depth+1, s, offset)
 	case s[offset] == '"':
 		// Check string node.
-		e := bytealg.IndexByteAtLR(s, '"', offset+1)
+		e := bytealg.IndexByteAtLUR(s, '"', offset+1)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
@@ -79,7 +64,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 			// Walk over double quotas and look for unescaped.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
-				i = bytealg.IndexByteAtLR(s, '"', i+1)
+				i = bytealg.IndexByteAtLUR(s, '"', i+1)
 				if i < 0 {
 					e = len(s) - 1
 					break
@@ -148,7 +133,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			return offset, ErrUnexpId
 		}
 		offset++
-		e := bytealg.IndexByteAtLR(s, '"', offset)
+		e := bytealg.IndexByteAtLUR(s, '"', offset)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
@@ -159,7 +144,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			// Key contains escaped bytes.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
-				i = bytealg.IndexByteAtLR(s, '"', i+1)
+				i = bytealg.IndexByteAtLUR(s, '"', i+1)
 				if i < 0 {
 					e = len(s) - 1
 					break

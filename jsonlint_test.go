@@ -26,164 +26,157 @@ var (
 	}
 )
 
-func TestValidateGood(t *testing.T) {
-	var (
-		o   int
-		err error
-	)
-	for _, jsv := range jsvGood {
-		o, err = Validate(jsv)
-		if err != nil {
-			t.Error(err)
+func TestJsonlint(t *testing.T) {
+	t.Run("ValidateGood", func(t *testing.T) {
+		var (
+			o   int
+			err error
+		)
+		for _, jsv := range jsvGood {
+			o, err = Validate(jsv)
+			if err != nil {
+				t.Error(err)
+			}
+			if o < len(jsv) {
+				t.Error("unparsed tail", len(jsv)-o, "bytes")
+			}
 		}
-		if o < len(jsv) {
-			t.Error("unparsed tail", len(jsv)-o, "bytes")
+	})
+	t.Run("empty", func(t *testing.T) {
+		_, err := Validate(jsvBad[0])
+		if err != ErrEmptySrc {
+			t.Error("need", ErrEmptySrc, "got", err)
 		}
-	}
-}
-
-func TestValidateEmpty(t *testing.T) {
-	_, err := Validate(jsvBad[0])
-	if err != ErrEmptySrc {
-		t.Error("need", ErrEmptySrc, "got", err)
-	}
-}
-
-func TestValidateUnparsedTail(t *testing.T) {
-	o, err := Validate(jsvBad[1])
-	if err != ErrUnparsedTail {
-		t.Error("need", ErrUnparsedTail, "got", err)
-	}
-	if o != 183 {
-		t.Error("bad offset", o, "need", 183)
-	}
-}
-
-func TestValidateUnexpId(t *testing.T) {
-	o, err := Validate(jsvBad[2])
-	if err != ErrUnexpId {
-		t.Error("need", ErrUnexpId, "got", err)
-	}
-	if o != 28 {
-		t.Error("bad offset", o, "need", 28)
-	}
-}
-
-func TestValidateUnexpEOF(t *testing.T) {
-	o, err := Validate(jsvBad[3])
-	if err != ErrUnexpEOF {
-		t.Error("need", ErrUnexpEOF, "got", err)
-	}
-	if o != 181 {
-		t.Error("bad offset", o, "need", 181)
-	}
-}
-
-func TestValidateUnclosedString(t *testing.T) {
-	o, err := Validate(jsvBad[4])
-	if err != ErrUnexpId {
-		t.Error("need", ErrUnexpId, "got", err)
-	}
-	if o != 138 {
-		t.Error("bad offset", o, "need", 138)
-	}
-}
-
-func TestValidateEmptyArrItem(t *testing.T) {
-	o, err := Validate(jsvBad[5])
-	if err != ErrUnexpId {
-		t.Error("need", ErrUnexpId, "got", err)
-	}
-	if o != 139 {
-		t.Error("bad offset", o, "need", 139)
-	}
-}
-
-func BenchmarkValidateGood(b *testing.B) {
-	var (
-		o   int
-		err error
-	)
-	b.ResetTimer()
-	b.ReportAllocs()
-	l := len(jsvGood[0])
-	for i := 0; i < b.N; i++ {
-		o, err = Validate(jsvGood[0])
-		if err != nil {
-			b.Error(err)
-		}
-		if o < l {
-			b.Error("unparsed tail", l-o, "bytes")
-		}
-	}
-}
-
-func BenchmarkValidateUnparsedTail(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	})
+	t.Run("unparsed tail", func(t *testing.T) {
 		o, err := Validate(jsvBad[1])
 		if err != ErrUnparsedTail {
-			b.Error("need", ErrUnparsedTail, "got", err)
+			t.Error("need", ErrUnparsedTail, "got", err)
 		}
 		if o != 183 {
-			b.Error("bad offset", o, "need", 183)
+			t.Error("bad offset", o, "need", 183)
 		}
-	}
-}
-
-func BenchmarkValidateUnexpId(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	})
+	t.Run("unexpected id", func(t *testing.T) {
 		o, err := Validate(jsvBad[2])
 		if err != ErrUnexpId {
-			b.Error("need", ErrUnexpId, "got", err)
+			t.Error("need", ErrUnexpId, "got", err)
 		}
 		if o != 28 {
-			b.Error("bad offset", o, "need", 28)
+			t.Error("bad offset", o, "need", 28)
 		}
-	}
-}
-
-func BenchmarkValidateUnexpEOF(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	})
+	t.Run("unexpected EOF", func(t *testing.T) {
 		o, err := Validate(jsvBad[3])
 		if err != ErrUnexpEOF {
-			b.Error("need", ErrUnexpEOF, "got", err)
+			t.Error("need", ErrUnexpEOF, "got", err)
 		}
 		if o != 181 {
-			b.Error("bad offset", o, "need", 181)
+			t.Error("bad offset", o, "need", 181)
 		}
-	}
-}
-
-func BenchmarkValidateUnclosedString(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	})
+	t.Run("unclosed string", func(t *testing.T) {
 		o, err := Validate(jsvBad[4])
 		if err != ErrUnexpId {
-			b.Error("need", ErrUnexpId, "got", err)
+			t.Error("need", ErrUnexpId, "got", err)
 		}
 		if o != 138 {
-			b.Error("bad offset", o, "need", 138)
+			t.Error("bad offset", o, "need", 138)
 		}
-	}
-}
-
-func BenchmarkValidateEmptyArrItem(b *testing.B) {
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	})
+	t.Run("empty array item", func(t *testing.T) {
 		o, err := Validate(jsvBad[5])
 		if err != ErrUnexpId {
-			b.Error("need", ErrUnexpId, "got", err)
+			t.Error("need", ErrUnexpId, "got", err)
 		}
 		if o != 139 {
-			b.Error("bad offset", o, "need", 139)
+			t.Error("bad offset", o, "need", 139)
 		}
-	}
+	})
+}
+
+func BenchmarkJsonlint(b *testing.B) {
+	b.Run("ok", func(b *testing.B) {
+		var (
+			o   int
+			err error
+		)
+		b.ResetTimer()
+		b.ReportAllocs()
+		l := len(jsvGood[0])
+		for i := 0; i < b.N; i++ {
+			o, err = Validate(jsvGood[0])
+			if err != nil {
+				b.Error(err)
+			}
+			if o < l {
+				b.Error("unparsed tail", l-o, "bytes")
+			}
+		}
+	})
+	b.Run("unparsed tail", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			o, err := Validate(jsvBad[1])
+			if err != ErrUnparsedTail {
+				b.Error("need", ErrUnparsedTail, "got", err)
+			}
+			if o != 183 {
+				b.Error("bad offset", o, "need", 183)
+			}
+		}
+	})
+	b.Run("unexpected id", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			o, err := Validate(jsvBad[2])
+			if err != ErrUnexpId {
+				b.Error("need", ErrUnexpId, "got", err)
+			}
+			if o != 28 {
+				b.Error("bad offset", o, "need", 28)
+			}
+		}
+	})
+	b.Run("unexpected EOF", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			o, err := Validate(jsvBad[3])
+			if err != ErrUnexpEOF {
+				b.Error("need", ErrUnexpEOF, "got", err)
+			}
+			if o != 181 {
+				b.Error("bad offset", o, "need", 181)
+			}
+		}
+	})
+	b.Run("unclosed string", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			o, err := Validate(jsvBad[4])
+			if err != ErrUnexpId {
+				b.Error("need", ErrUnexpId, "got", err)
+			}
+			if o != 138 {
+				b.Error("bad offset", o, "need", 138)
+			}
+		}
+	})
+	b.Run("empty array item", func(b *testing.B) {
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			o, err := Validate(jsvBad[5])
+			if err != ErrUnexpId {
+				b.Error("need", ErrUnexpId, "got", err)
+			}
+			if o != 139 {
+				b.Error("bad offset", o, "need", 139)
+			}
+		}
+	})
 }
