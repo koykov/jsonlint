@@ -2,8 +2,10 @@ package jsonlint
 
 import (
 	"bytes"
+	"unsafe"
 
 	"github.com/koykov/bytealg"
+	"github.com/koykov/byteconv"
 	"github.com/koykov/byteseq"
 )
 
@@ -17,17 +19,22 @@ var (
 
 // Validate source bytes.
 func Validate[T byteseq.Byteseq](x T) (offset int, err error) {
-	s := byteseq.Q2B(x)
-	if len(s) == 0 {
+	var p []byte
+	if b, ok := byteseq.ToBytes(x); ok {
+		p = b
+	} else if s, ok := byteseq.ToString(x); ok {
+		p = byteconv.S2B(s)
+	}
+	if len(p) == 0 {
 		err = ErrEmptySrc
 		return
 	}
-	s = bytealg.Trim(s, bFmt)
-	offset, err = validateGeneric(0, s, offset)
+	p = bytealg.TrimBytes(p, bFmt)
+	offset, err = validateGeneric(0, p, offset)
 	if err != nil {
 		return offset, err
 	}
-	if offset < len(s) {
+	if offset < len(p) {
 		err = ErrUnparsedTail
 	}
 	return
@@ -53,7 +60,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 		offset, err = validateArr(depth+1, s, offset)
 	case s[offset] == '"':
 		// Check string node.
-		e := bytealg.IndexByteAtLUR(s, '"', offset+1)
+		e := bytealg.IndexByteAtBytes(s, '"', offset+1)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
@@ -64,7 +71,7 @@ func validateGeneric(depth int, s []byte, offset int) (int, error) {
 			// Walk over double quotas and look for unescaped.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
-				i = bytealg.IndexByteAtLUR(s, '"', i+1)
+				i = bytealg.IndexByteAtBytes(s, '"', i+1)
 				if i < 0 {
 					e = len(s) - 1
 					break
@@ -118,13 +125,14 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		err error
 		eof bool
 	)
+	n := len(s)
 	for offset < len(s) {
 		if s[offset] == '}' {
 			// End of object.
 			offset++
 			break
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 		// Parse key.
@@ -133,7 +141,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			return offset, ErrUnexpId
 		}
 		offset++
-		e := bytealg.IndexByteAtLUR(s, '"', offset)
+		e := bytealg.IndexByteAtBytes(s, '"', offset)
 		if e < 0 {
 			return len(s), ErrUnexpEOS
 		}
@@ -144,7 +152,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			// Key contains escaped bytes.
 			_ = s[len(s)-1]
 			for i := e; i < len(s); {
-				i = bytealg.IndexByteAtLUR(s, '"', i+1)
+				i = bytealg.IndexByteAtBytes(s, '"', i+1)
 				if i < 0 {
 					e = len(s) - 1
 					break
@@ -156,7 +164,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 			}
 			offset = e + 1
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 		// Check division symbol.
@@ -165,14 +173,14 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		} else {
 			return offset, ErrUnexpId
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 		// Parse value. It may be an arbitrary type.
 		if offset, err = validateGeneric(depth, s, offset); err != nil {
 			return offset, err
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 		// Check end of object again.
@@ -186,7 +194,7 @@ func validateObj(depth int, s []byte, offset int) (int, error) {
 		} else {
 			return offset, ErrUnexpId
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 	}
@@ -200,20 +208,21 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 		err error
 		eof bool
 	)
+	n := len(s)
 	for offset < len(s) {
 		if s[offset] == ']' {
 			// End of array.
 			offset++
 			break
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 		// Parse the value.
 		if offset, err = validateGeneric(depth, s, offset); err != nil {
 			return offset, err
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 		if s[offset] == ']' {
@@ -227,27 +236,11 @@ func validateArr(depth int, s []byte, offset int) (int, error) {
 		} else {
 			return offset, ErrUnexpId
 		}
-		if offset, eof = skipFmt(s, offset); eof {
+		if offset, eof = skipFmtTable(s, n, offset); eof {
 			return offset, ErrUnexpEOF
 		}
 	}
 	return offset, nil
-}
-
-// Skip formatting symbols like tabs, spaces, ...
-//
-// Returns the next non-format symbol index.
-func skipFmt(s []byte, offset int) (int, bool) {
-loop:
-	if offset >= len(s) {
-		return offset, true
-	}
-	c := s[offset]
-	if c != bFmt[0] && c != bFmt[1] && c != bFmt[2] && c != bFmt[3] {
-		return offset, false
-	}
-	offset++
-	goto loop
 }
 
 // Check if given byte is a part of the number.
@@ -258,4 +251,45 @@ func isDigit(c byte) bool {
 // Check if given is a part of the number, including dot.
 func isDigitDot(c byte) bool {
 	return isDigit(c) || c == '.'
+}
+
+// Table based approach of skipFmt.
+func skipFmtTable(src []byte, n, offset int) (int, bool) {
+	_ = src[n-1]
+	_ = skipTable[255]
+	if n-offset > 512 {
+		offset, _ = skipFmtBin8(src, n, offset)
+	}
+	for ; offset < n && skipTable[src[offset]]; offset++ {
+	}
+	return offset, offset == n
+}
+
+// Binary based approach of skipFmt.
+func skipFmtBin8(src []byte, n, offset int) (int, bool) {
+	_ = src[n-1]
+	_ = skipTable[255]
+	if *(*uint64)(unsafe.Pointer(&src[offset])) == binNlSpace7 {
+		offset += 8
+		for offset < n && *(*uint64)(unsafe.Pointer(&src[offset])) == binSpace8 {
+			offset += 8
+		}
+	}
+	return offset, false
+}
+
+var (
+	skipTable   = [256]bool{}
+	binNlSpace7 uint64
+	binSpace8   uint64
+)
+
+func init() {
+	skipTable[' '] = true
+	skipTable['\t'] = true
+	skipTable['\n'] = true
+	skipTable['\t'] = true
+
+	binNlSpace7Bytes, binSpace8Bytes := []byte("\n       "), []byte("        ")
+	binNlSpace7, binSpace8 = *(*uint64)(unsafe.Pointer(&binNlSpace7Bytes[0])), *(*uint64)(unsafe.Pointer(&binSpace8Bytes[0]))
 }
